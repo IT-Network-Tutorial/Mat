@@ -1,0 +1,299 @@
+#include <stdio.h>
+#include <conio.h>
+#include <dos.h>
+
+int klavesa;
+int maska_smer1 = 0x02;
+int maska_smer0 = 0xfd;//masky pro směr
+int maska_otaceni = 0x7f;
+int maska_hlrameno = 0xbf;
+int maska_chapadlo = 0xdf;
+int maska_ramenochapadlo = 0xef;//Masky pro motory
+int maska_deaktivace = 0xff; //deaktivace všech motorů
+int port1 = 0xff;//Hodnota k odeslání na port 301 
+int port2 = 0xff;//Hodnota k odeslání na port 300
+int takt1 = 0x80;//1
+int takt2 = 0x0;//0
+//Závory
+int zavora_otaceni;
+int zavora_ramenochap;
+int zavora_chapadlo;
+int zavora_hlrameno;//Koncáky
+int stav_zavor;
+int ir_ot;
+int ir_ramchap;
+int ir_chap;
+int ir_hlram;//Proměnné pro závory
+
+//Takty motorů
+int t_ot = 0;
+int t_hlram = 0;
+int t_chap = 0;
+int t_ramchap = 0;
+
+
+int main()
+{
+	//Najetí do výchozí polohy
+	while (zavora_otaceni != 1)//Dokud není závora aktivní
+	{
+		stav_zavor = inportb(0x301);//Načtení do proměnné
+		ir_ot = stav_zavor | maska_otaceni; //Masky mohu využít stejné
+		if (ir_ot == 0x7f)//Pokud je na daném bitu 0
+		{
+			port1 = 0xff;
+			port2 = 0xff;
+			zavora_otaceni = 1;//Koncák je aktivní
+		}
+		else
+		{
+			port2 = port2 & maska_otaceni;//aktivace motoru
+			port1 = port1 & maska_smer0;//Otáčení vlevo
+			zavora_otaceni = 0;//Pokud ne, není aktivní
+			//Takt
+			outportb(0x301, takt1);
+			delay(1);
+			outportb(0x301, takt2);
+			delay(1);
+			//Odeslání na port
+			outportb(0x301, port1);
+			outportb(0x300, port2);//Odeslání hodnoty na port pro rozhýbání robota
+		}
+	}
+
+	while (zavora_hlrameno != 1)//Dokud není závora aktivní
+	{
+		stav_zavor = inportb(0x301);//Načtení do proměnné
+		ir_hlram = stav_zavor | maska_hlrameno;
+		if (ir_hlram == 0xbf)//Pokud je na daném bitu 0
+		{
+			port1 = 0xff;
+			port2 = 0xff;
+			zavora_hlrameno = 1;//Koncák je aktivní
+		}
+		else
+		{
+			port2 = port2 & maska_hlrameno;//aktivace hl. ramena
+			port1 = port1 & maska_smer0;//směr nahoru
+			zavora_hlrameno = 0;//Pokud ne, není aktivní
+			//Takt
+			outportb(0x301, takt1);
+			delay(1);
+			outportb(0x301, takt2);
+			delay(1);
+			//Odeslání na port
+			outportb(0x301, port1);
+			outportb(0x300, port2);//Odeslání hodnoty na port pro rozhýbání robota
+		}
+	}
+
+	while (zavora_chapadlo != 1)//Dokud není závora aktivní
+	{
+		stav_zavor = inportb(0x301);//Načtení do proměnné
+		ir_chap = stav_zavor | maska_chapadlo;
+		if (ir_chap == 0xdf)//Pokud je na daném bitu 0
+		{
+			port1 = 0xff;
+			port2 = 0xff;
+			zavora_chapadlo = 1;//Koncák je aktivní
+		}
+		else
+		{
+			port2 = port2 & maska_chapadlo;//aktivace chapadla
+			port1 = port1 & maska_smer0;//otevřít chapadlo
+			zavora_chapadlo = 0;//Pokud ne, není aktivní
+			//Takt
+			outportb(0x301, takt1);
+			delay(1);
+			outportb(0x301, takt2);
+			delay(1);
+			//Odeslání na port
+			outportb(0x301, port1);
+			outportb(0x300, port2);//Odeslání hodnoty na port pro rozhýbání robota
+		}
+	}
+
+	while (zavora_ramenochap != 1)//Dokud není závora aktivní
+	{
+		stav_zavor = inportb(0x301);//Načtení do proměnné
+		ir_ramchap = stav_zavor | maska_ramenochapadlo;
+		if (ir_ramchap == 0xef)//Pokud je na daném bitu 0
+		{
+			port1 = 0xff;
+			port2 = 0xff;
+			zavora_ramenochap = 1;//Koncák je aktivní
+		}
+		else
+		{
+			port2 = port2 & maska_ramenochapadlo;//aktivace pohybu chapadla
+			port1 = port1 | maska_smer1;//směr nahoru
+			zavora_ramenochap = 0;//Pokud ne, není aktivní
+			//Takt
+			outportb(0x301, takt1);
+			delay(1);
+			outportb(0x301, takt2);
+			delay(1);
+			//Odeslání na port
+			outportb(0x301, port1);
+			outportb(0x300, port2);//Odeslání hodnoty na port pro rozhýbání robota
+		}
+	}
+
+	while (1)//Nekonečý cyklus
+	{
+		printf("Otaceni zakladny pomoci klaves a,d.");
+		printf("Pohyb hlavniho ramena pomoci klaves w,s.");
+		printf("Pohyb ramena chapadla pomoci klaves m,n.");
+		printf("Sevreni chapadla/rozevreni chapadla pomoci klaves f,g.");
+
+		stav_zavor = inportb(0x301);//Načtení do proměnn
+		ir_ot = stav_zavor | maska_otaceni; //Masky mohu využít stejné
+		if (ir_ot == 0x7f)//Pokud je na daném bitu 0
+		{
+			printf("Dosazeno mezni polohy, stisk a zakazan.");//Indikace v pc
+			zavora_otaceni = 1;//Koncák je aktivní
+			t_ot = 0;//nulování počítání taktů
+		}
+		else zavora_otaceni = 0;//Pokud ne, není aktivní
+
+		ir_hlram = stav_zavor | maska_hlrameno;
+		if (ir_hlram == 0xbf)//Pokud je na daném bitu 0
+		{
+			printf("Dosazeno mezni polohy, stisk w zakazan.");//Indikace v pc
+			zavora_hlrameno = 1;//Koncák je aktivní
+			t_hlram = 0;//nulování počítání taktů
+		}
+		else zavora_hlrameno = 0;//Pokud ne, není aktivní
+
+		ir_chap = stav_zavor | maska_chapadlo;
+		if (ir_chap == 0xdf)//Pokud je na daném bitu 0
+		{
+			printf("Dosazeno mezni polohy, stisk f zakazan.");//Indikace v pc
+			zavora_chapadlo = 1;//Koncák je aktivní
+			t_chap = 0;//nulování počítání taktů
+		}
+		else zavora_chapadlo = 0;//Pokud ne, není aktivní
+
+		ir_ramchap = stav_zavor | maska_ramenochapadlo;
+		if (ir_ramchap == 0xef)//Pokud je na daném bitu 0
+		{
+			printf("Dosazeno mezni polohy, stisk m zakazan.");//Indikace v pc
+			zavora_ramenochap = 1;//Koncák je aktivní
+			t_ramchap = 0;//nulování počítání taktů
+		}
+		else zavora_ramenochap = 0;//Pokud ne, není aktivní
+
+		if (kbhit())//detekce stisknutého tlačítka
+		{
+			klavesa = getch(); //jeho zapsání do proměnné
+
+			switch (klavesa)
+			{
+			case 97://a
+				if (zavora_otaceni != 1)//Pokud závora není aktivní
+				{
+					port2 = port2 & maska_otaceni;//aktivace motoru
+					port1 = port1 & maska_smer0;//Otáčení vlevo
+					t_ot--;//Odečítání taktů
+				}
+				else
+				{
+					port1 = 0xff;
+					port2 = 0xff;
+				}
+				break;
+			case 100://d
+				if (t_ot < 1800) //Pokud je počet taktů menší než 2645
+				{
+					port2 = port2 & maska_otaceni;
+					port1 = port1 | maska_smer1;//směr vpravo
+					t_ot++;//Přičítání taktů
+				}
+				else
+				{
+					printf("Dosazeno mezni polohy, stisk d zakazan.");//Indikace v pc
+				}
+				break;
+			case 119://w
+				if (zavora_hlrameno != 1)//Pokud závora není aktivní
+				{
+					port2 = port2 & maska_hlrameno;//aktivace hl. ramena
+					port1 = port1 & maska_smer0;//směr nahoru
+					t_hlram--;//Odečítání taktů
+				}
+				break;
+			case 115://s
+				if (t_hlram < 500)//Pokud je počet taktů menší než 610
+				{
+					port2 = port2 & maska_hlrameno;//aktivace hl. ramena
+					port1 = port1 | maska_smer1;//směr dolů
+					t_hlram++;//Přičítání taktů
+				}
+				else
+				{
+					printf("Dosazeno mezni polohy, stisk s zakazan.");//Indikace v pc
+				}
+				break;
+			case 102://f
+				if (zavora_chapadlo != 1)//Pokud závora není aktivní
+				{
+					port2 = port2 & maska_chapadlo;//aktivace chapadla
+					port1 = port1 & maska_smer0;//otevřít chapadlo
+					t_chap--;//Odečítání taktů
+				}
+				break;
+			case 103://g
+				if (t_chap < 450)//Pokud je počet taktů menší než 560
+				{
+					port2 = port2 & maska_chapadlo;//aktivace chapadla
+					port1 = port1 | maska_smer1;//zavřít chapadlo
+					t_chap++;//Přičítání taktů
+				}
+				else
+				{
+					printf("Dosazeno mezni polohy, stisk g zakazan.");//Indikace v pc
+				}
+				break;
+
+			case 109://m
+				if (zavora_ramenochap != 1)
+				{
+					port2 = port2 & maska_ramenochapadlo;//aktivace pohybu chapadla
+					port1 = port1 | maska_smer1;//směr nahoru
+					t_ramchap--;//Odečítání taktů
+				}
+				break;
+
+			case 110://n
+				if (t_ramchap < 3000)//Pokud je počet taktů menší než 3950
+				{
+					port2 = port2 & maska_ramenochapadlo;//aktivace pohybu chapadla
+					port1 = port1 & maska_smer0;//směr dolu
+					t_ramchap++;//Přičítání taktů
+				}
+				else
+				{
+					printf("Dosazeno mezni polohy, stisk n zakazan.");//Indikace v pc
+				}
+				break;
+			}
+
+			//Takt
+			outportb(0x301, takt1);
+			delay(1);
+			outportb(0x301, takt2);
+			delay(1);
+
+			outportb(0x301, port1);
+			outportb(0x300, port2);//Odeslání hodnoty na port pro rozhýbání robota
+		}
+		else //Pokud není stisknuté tlačítko 
+		{
+			port1 = 0xff;
+			port2 = 0xff;//Pokud není nic stisknuto, nulují se porty
+		}
+		clrscr();//Vymazání všeho z monitoru
+	}
+
+}
+

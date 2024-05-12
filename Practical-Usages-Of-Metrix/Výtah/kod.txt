@@ -1,0 +1,140 @@
+#include <stdio.h>
+#include <dos.H>
+#include <conio.H>
+
+int patro;
+int stav;
+int port300;
+int port301;
+int spusteni = 0;//pomocná proměnná
+int mp1 = 0x7f;
+int mp2 = 0xbf;
+int mp3 = 0xdf;
+int mp4 = 0xef;//masky pro čidla, přivolávací tlačítka na patrech
+int mp[] = {0, 0x7f, 0xbf, 0xdf, 0xef };//5 pozic kvůli 0
+int mds = 0xfe;//Maska pro dveřní spínač
+int mps = 0xfd;//Maska pro podlahový spínač
+int dvere = 0;//pomocná proměnná
+int ps = 0;//pomocná proměnná
+int mps0[] = { 0x7f, 0xbf, 0xdf, 0xef };//Masky pro všechny tlačítka
+int mps1[] = { 0xf7, 0xfb, 0xfd, 0xfe };//Masky pro tlačítka u kabinky
+int cislo[] = { 0, 0xfc, 0xfa, 0xfe, 0xf9 };//Hodnoty pro segment (nula je pomocná)
+int stisk;
+int pozadovane_patro=1;//První požadované patro je výchozí první
+int zakaz = 0;//pomocná proměnná pro zákaz změny volby během chodu
+int zvuk = 0;//pomocná pro zvukový signál
+
+void nahoru()
+{
+	clrscr();//vycisteni obrazovky
+	outportb(0x300, 0x5f);//Aktivace motoru, směr nahoru, signalizace
+	zakaz = 1;//Když výtah jede, je zakázáno měnit volbu patra
+}
+
+void dolu()
+{
+	clrscr();//vycisteni obrazovky
+	outportb(0x300, 0x2f);//Aktivace motoru, směr dolu, signalizace
+	zakaz = 1;//Když výtah jede, je zakázáno měnit volbu patra
+}
+void stop()
+{
+	outportb(0x300, 0xff);//Deaktivace všeho
+	zakaz = 0;//Když výtah stojí, je povoleno měnit volbu
+}
+
+void zz()
+{
+	clrscr();//vycisteni obrazovky
+	outportb(0x300, 0xfe);//Zvukový signál
+	delay(100);//Zpoždění, během kterého bude aktiivní siréna
+	outportb(0x300, 0xff);//Deaktivace všeho
+    printf("Jste na patre");//Indikace v pc
+}
+int main()
+{
+	while(stav!=mp1)//Dokud není v prvním patře
+	{
+	  port300 = inportb(0x300);//přečte hodnotu z portu
+	  stav = port300 | mp1;//Maskuje
+	  dolu();//Jede dolu
+	}
+   stop();//Po dosažení se zastaví
+	while (1)
+	{      
+		for (int i = 0; i <= 4; i++)//Cyklus pro zjištění, v jakém patře se program nachází
+		{
+			port300 = inportb(0x300);//přečte hodnotu z portu pro zjištěńí patra
+			stav = port300 | mp[i];//Maskování
+			if (stav == mp[i])//Pokud se maska rovná hodnotě
+			{
+				patro = i;//Patro je rovno indexu
+				outportb(0x301, cislo[i]);//Pošle na port hodnotu pro zobrazení akt. patra na segmentu
+			}
+		}
+		port300 = inportb(0x300);//přečte hodnotu pro zjištění stavu dveřního spínače
+		stav = port300 | mds;//Maskování (dveřní spínač)
+		if (stav == 0xfe) dvere = 1;//Pokud dochází ke shodě, dveře jsou zavřeny
+		else dvere = 0;
+		if (dvere == 1)//Pokud jsou zavřeny, program pokračuje
+		{
+			port300 = inportb(0x300);//přečte hodnotu z portu
+			stav = port300 | mps;//Maskování
+			if (stav == 0xfd) ps = 1;//Podlahový spínač aktivní
+			else ps = 0;//Podlahový spínač neaktivní
+			if (zakaz == 0)//Stisk se může vyhodnotit pouze v případě, že výtah stojí
+			{
+				switch (ps) //Pro vyhodnocení stisku
+				{
+				case 0: //Podlahový spínač neaktivní
+					for (int z = 0; z <= 3; z++)//Smyčka pro kontrolu stisku
+					{
+						port301 = inportb(0x301);//přečte hodnotu z portu
+						stav = port301 | mps0[z];//Maskuje
+						if (stav == mps0[z])//Pokud se maska rovná hodnotě
+						{
+							stisk = z;//Patro je rovno indexu
+							zvuk = 1;//Povolení zvuku při dojezdu
+							pozadovane_patro = z+1;//požadované patro je rovno indexu +1 (velikost pole)
+						}
+					}
+					break;
+				case 1://Podlahový spínač aktivní
+					for (int j = 0; j <= 3; j++)//Smyčka pro kontrolu stisku
+					{
+						port301 = inportb(0x301);//přečte hodnotu z portu
+						stav = port301 | mps1[j];//Maskuje
+						if (stav == mps1[j])//Pokud se maska rovná hodnotě
+						{
+							stisk = j;//Patro je rovno indexu
+							zvuk = 1;//Povolení zvuku při dojezdu
+							pozadovane_patro = j+1;//požadované patro je rovno indexu +1 (velikost pole)
+						}
+					}
+					break;
+				}
+			}
+
+			if (pozadovane_patro>patro)//Pokud je zvolené patro větší než aktuální
+			{
+				nahoru();//směr nahoru
+			}
+			else if (pozadovane_patro < patro)//Pokud je požadované menší než aktuální
+			{
+				dolu();//směr dolů
+			}
+			else 
+			{
+				stop();//Zastavení po dojetí na patro
+			}
+			
+			if ((zvuk == 1) && (pozadovane_patro==patro))//Pokud je povolen zvuk a zároveň jste dojeli na patro
+			{
+				zz();//Aktivuje se zvukový signál
+				zvuk = 0;//Deaktivace zvuku
+			}
+		}
+		else stop();//Pokud dveře nejsou zavřeny, výtah se zastaví
+	}
+}
+

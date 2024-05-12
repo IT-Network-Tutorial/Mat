@@ -1,0 +1,150 @@
+#include <stdio.h>
+#include <conio.h>
+#include <dos.h>
+int vystup = 0x00FE;
+int vstup = 0;
+int setBit(int hodnota, int poradi)
+{
+    int maska = 1;
+    maska = maska << poradi;
+    hodnota |= maska;
+    return(hodnota);
+}
+int clearBit(int hodnota, int poradi)
+{
+    int maska = 1;
+    maska = maska << poradi;
+    hodnota &= ~(maska);
+    return(hodnota);
+}
+int read_one_IR(int poradi) // vrati 0 pro aktivni zavoru a 1 pro neaktivni
+{
+    vstup = inportb(0x301);
+    if (poradi == 1) vstup = vstup & (0x01); // Zavora otaceni zakladny
+    if (poradi == 2) vstup = vstup & (0x02); // Zavora hlavniho ramene
+    if (poradi == 3) vstup = vstup & (0x04); // Zavora ramene chapadla
+    if (poradi == 4) vstup = vstup & (0x08); // Zavora chapadla
+    if (vstup == 0) return(0); else return(1);
+}
+void krok(int pocet)
+{
+    int i = 0;
+    for (i = 0; i < pocet; i++)
+        {
+            vystup = setBit(vystup, 0);    // Nahozeni krokovaciho bitu (jeden step motoru)
+            outportb(0x301, vystup);       // Vyvedeni hodnoty na port
+            delay(3);                      // Cekej 3ms
+            vystup = clearBit(vystup, 0);  // Shozeni krokovaciho bitu
+            outportb(0x301, vystup);       // Vyvedeni hodnoty na port
+            delay(3);                      // Cekej 3ms
+        }
+}
+void setMotor(int motor, int smer)
+{
+    vystup = setBit(vystup, 5); // ctvrty motor vypnout
+    vystup = setBit(vystup, 4); // treti motor vypnout
+    vystup = setBit(vystup, 3); // druhy motor vypnout
+    vystup = setBit(vystup, 2); // prvni motor vypnout
+    vystup = clearBit(vystup, 1 + motor); // poradi motoru plus 1 dava pozici bitu v r. slove
+    if (smer == 1) vystup = setBit(vystup, 1);
+    else vystup = clearBit(vystup, 1);
+    outportb(0x301, vystup);
+}
+
+void setVychozi (void)
+  {
+     setMotor (1,0);
+     while (read_one_IR(1)==1) krok(1);  // Vyber motor 1 a toc dokud neni splnena zavora (u zakladny muze byt problem, toceni na jednu stranu nemusi fungovat, pokud by byl robot natocen za cidlem)
+     setMotor (2,0);
+     while (read_one_IR(2)==1) krok(1);  // Vyber motor 2 a toc dokud neni splnena zavora
+     setMotor (3,0);
+     while (read_one_IR(3)==1) krok(1);  // Vyber motor 3 a toc dokud neni splnena zavora
+     setMotor (4,0);
+     while (read_one_IR(4)==1) krok(1);  // Vyber motor 4 a toc dokud neni splnena zavora
+     // Tady na konci uz by mel byt robot ve vychozi poloze
+     printf("Robot je ve vychozi poloze \r\n");
+
+  }
+
+int main(void)
+{
+    char klavesa;
+    setVychozi(); // Zavola funkci pro navrat do vychozi polohy
+    do
+    {
+        klavesa = getch();
+        if (klavesa == '1') // rameno chapadla nahoru
+        {
+                setMotor(3, 1);
+                krok(2);
+        }
+        if (klavesa == '2') // pokladani hlavniho ramene
+        {
+                setMotor(2, 1);
+                krok(2);
+        }
+        if (klavesa == '3') // rameno chapadla dolu
+        {
+            if (read_one_IR(3) == 1)
+            {
+                setMotor(3, 0);
+                krok(2);
+            }
+            else
+            {
+                printf("Aktivni zavora ramene chapadla\r\n");
+            }
+        }
+        if (klavesa == '4') // otaceni zakladny doleva
+        {
+            if (read_one_IR(1) == 1)
+            {
+                setMotor(1, 0);
+                krok(2);
+            }
+            else
+            {
+                printf("Aktivni zavora otaceni zakladny");
+            }
+        }
+        if (klavesa == '5') //pomalejsi rychlost posledniho pouziteho motoru
+            {
+            krok(1);
+        }
+        if (klavesa == '6') // otaceni zakladny doprava
+        {
+                setMotor(1, 1);
+                krok(2);
+        }
+        if (klavesa == '7') // otevirani chapadla
+        {
+            if (read_one_IR(4) == 1)
+            {
+                setMotor(4, 0);
+                krok(2);
+            }
+            else
+            {
+                printf("Aktivni zavora chapadla\r\n");
+            }
+        }
+        if (klavesa == '8') // zvedani hlavniho ramene
+        {
+            if (read_one_IR(2) == 1)
+            {
+                setMotor(2, 0);
+                krok(2);
+            }
+            else
+            {
+                printf("Aktivni zavora hlavniho ramene\r\n");
+            }
+        }
+        if (klavesa == '9') // zavirani chapadla
+        {
+                setMotor(4, 1);
+                krok(2);
+         if (klavesa == '0') setVychozi(); // Na stisk klavesy nula nastavi vychozi polohu
+        }
+    } while (klavesa != 'x'); // stisk x => ukonceni programu
+}

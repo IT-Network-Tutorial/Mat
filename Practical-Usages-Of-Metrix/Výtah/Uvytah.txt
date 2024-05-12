@@ -1,0 +1,162 @@
+//////////////////////////////////////////////////
+//
+// Vytah.c (c) 2023 Ing. Jiri Ullmann
+// MCU unit for elevator
+//
+//////////////////////////////////////////////////
+
+#define F_CPU 16000000UL
+#define BAUD 9600
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<avr/io.h>
+#include<avr/interrupt.h>
+#include<util/delay.h>
+#include<util/setbaud.h>
+#include<avr/eeprom.h>
+
+
+void Display (uint8_t digit)
+  {
+     uint8_t value=digit & 0x07;
+     PORTC&=~(0x07);
+     PORTC|=value;
+  }
+
+void Buzzer (void)
+  {
+    PORTC&=~(0x08);
+    _delay_ms(125);
+    PORTC|=0x08;
+  }
+
+void Arrows (uint8_t value) // 0=OFF, 1=UP, 2=DOWN, 3=BOTH
+  {
+    PORTC|=0x30;
+    PORTC&=~(value << 4);
+  }
+
+void Motor (uint8_t value) // 0=OFF, 1=UP, 2=DOWN
+  {
+    PORTB|=0x30;
+    Arrows(3);
+    if (value==1)
+      {
+         PORTB&=~(0x20);
+         Arrows(1);
+      }
+    if (value==2)
+      {
+        PORTB&=~(0x30);
+        Arrows(2);
+      }
+  }
+
+void Light (uint8_t value) // 0=OFF, 1=ON
+  {
+    PORTB |=0x08;
+    if (value==1) PORTB&=~(0x08);
+  }
+
+uint8_t Door_Switch (void)
+  {
+    if ((PINB & 0x04)==0) return (0);
+    return (1);
+  }
+
+uint8_t Etage_Sensors (void)
+  {
+    if ((PINB & 0x02) == 0) return (5);
+    if ((PINB & 0x01) == 0) return (4);
+    if ((PIND & 0x80) == 0) return (3);
+    if ((PIND & 0x40) == 0) return (2);
+    if ((PIND & 0x20) == 0) return (1);
+    return(0);
+  }
+
+uint8_t Buttons (void)
+  {
+    if ((PIND & 0x10) == 0) return (5);
+    if ((PIND & 0x08) == 0) return (4);
+    if ((PIND & 0x04) == 0) return (3);
+    if ((PIND & 0x02) == 0) return (2);
+    if ((PIND & 0x01) == 0) return (1);
+    return (0);
+  }
+
+void Cabin_Reset (void)
+  {
+    Motor (2);
+    while (Etage_Sensors()!=1);
+    Motor (0);
+    Display (1);
+  }
+
+void hw_init (void)
+  {
+                // 0 1 2          3       4         5
+    DDRC=0x3F;  // A B C Display  Buzzer  Arrow-UP  Arrow-DN
+    PORTC=0x3F;
+    DDRB=0x38;  // PB.5 = Motor, PB.4 = Reversator, PB.3 Light
+    PORTB=0x38;
+    DDRD=0x00;  // PD.0 ... PD.4  Etage sensors
+    PORTD=0x00;
+  }
+
+void up_way(uint8_t where)
+  {
+    uint8_t pos=0;
+    Light (1);
+    while (1)
+      {
+        if (Etage_Sensors()!=0) pos=Etage_Sensors();
+        if (pos!=0) Display (pos);
+        if (pos==where) break;
+        if (Door_Switch()) Motor(0); else Motor(1);
+      }
+    Motor (0);
+    Light (0);
+    Buzzer();
+  }
+
+void down_way(uint8_t where)
+  {
+    uint8_t pos=0;
+    Light(1);
+    while (1)
+      {
+        if (Etage_Sensors()!=0) pos=Etage_Sensors();
+        if (pos!=0) Display (pos);
+        if (pos==where) break;
+        if (Door_Switch()) Motor (0); else Motor(2);
+      }
+    Motor(0);
+    Light(0);
+    Buzzer();
+  }
+
+int main(void)
+  {
+     uint8_t Etage=1;
+     uint8_t Choice=1;
+     hw_init();
+     //UART_init();
+     Cabin_Reset();
+     while(1)
+       {
+         if (Buttons()!=0) Choice=Buttons();
+         Light (Door_Switch());
+         if (Choice>Etage)
+           {
+             up_way(Choice);
+             Etage=Choice;
+           }
+         if (Choice<Etage)
+           {
+             down_way(Choice);
+             Etage=Choice;
+           }
+
+       }
+  }
